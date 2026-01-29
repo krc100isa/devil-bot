@@ -1,0 +1,94 @@
+version: '3.9'
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: securechat
+      POSTGRES_PASSWORD: securechat
+      POSTGRES_DB: securechat
+    ports:
+      - '5432:5432'
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+
+  mongo:
+    image: mongo:7
+    ports:
+      - '27017:27017'
+    volumes:
+      - ./data/mongo:/data/db
+
+  redis:
+    image: redis:7
+    ports:
+      - '6379:6379'
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ':9001'
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - ./data/minio:/data
+
+  auth-service:
+    build:
+      context: ..
+      dockerfile: services/auth-service/Dockerfile
+    env_file: ../services/auth-service/.env.example
+    depends_on:
+      - postgres
+      - redis
+
+  message-service:
+    build:
+      context: ..
+      dockerfile: services/message-service/Dockerfile
+    env_file: ../services/message-service/.env.example
+    depends_on:
+      - postgres
+      - mongo
+      - redis
+      - minio
+
+  api-gateway:
+    build:
+      context: ..
+      dockerfile: services/api-gateway/Dockerfile
+    env_file: ../services/api-gateway/.env.example
+    ports:
+      - '4000:4000'
+    depends_on:
+      - auth-service
+      - message-service
+
+  websocket-gateway:
+    build:
+      context: ..
+      dockerfile: services/websocket-gateway/Dockerfile
+    env_file: ../services/websocket-gateway/.env.example
+    ports:
+      - '5000:5000'
+    depends_on:
+      - redis
+
+  call-service:
+    build:
+      context: ..
+      dockerfile: services/call-service/Dockerfile
+    env_file: ../services/call-service/.env.example
+    depends_on:
+      - mongo
+      - redis
+
+  notification-service:
+    build:
+      context: ..
+      dockerfile: services/notification-service/Dockerfile
+    env_file: ../services/notification-service/.env.example
+    depends_on:
+      - redis
