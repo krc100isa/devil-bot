@@ -1,0 +1,149 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum DeviceType {
+  ios
+  android
+  web
+  desktop
+}
+
+enum PrivacyLevel {
+  everyone
+  contacts
+  nobody
+}
+
+enum ConversationType {
+  direct
+  group
+  broadcast
+}
+
+enum ParticipantRole {
+  member
+  admin
+  owner
+}
+
+enum ContactStatus {
+  pending
+  accepted
+  blocked
+}
+
+enum NotificationPreference {
+  all
+  mentions
+  none
+}
+
+model User {
+  id            String      @id @default(uuid())
+  phoneNumber   String      @unique
+  email         String?     @unique
+  displayName   String
+  username      String?     @unique
+  bio           String?
+  avatarUrl     String?
+  publicKey     String
+  isVerified    Boolean     @default(false)
+  lastSeenAt    DateTime?
+  privacy       PrivacyLevel @default(everyone)
+  readReceipts  Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  deletedAt     DateTime?
+  sessions      UserSession[]
+  contacts      Contact[]   @relation("UserContacts")
+  contactOf     Contact[]   @relation("ContactOf")
+}
+
+model UserSession {
+  id           String      @id @default(uuid())
+  userId       String
+  deviceId     String
+  deviceName   String
+  deviceType   DeviceType
+  pushToken    String?
+  ipAddress    String
+  location     Json?
+  lastActiveAt DateTime?
+  createdAt    DateTime    @default(now())
+  expiresAt    DateTime
+  isActive     Boolean     @default(true)
+  user         User        @relation(fields: [userId], references: [id])
+  @@index([userId])
+}
+
+model Conversation {
+  id          String           @id @default(uuid())
+  type        ConversationType
+  name        String?
+  description String?
+  avatarUrl   String?
+  creatorId   String
+  admins      String[]
+  settings    Json?
+  isArchived  Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  participants ConversationParticipant[]
+}
+
+model ConversationParticipant {
+  id                    String                @id @default(uuid())
+  conversationId        String
+  userId                String
+  role                  ParticipantRole
+  joinedAt              DateTime              @default(now())
+  leftAt                DateTime?
+  lastReadMessageId     String?
+  isMuted               Boolean               @default(false)
+  muteUntil             DateTime?
+  notifications         NotificationPreference @default(all)
+  conversation          Conversation          @relation(fields: [conversationId], references: [id])
+  @@index([conversationId])
+  @@index([userId])
+}
+
+model Contact {
+  id         String        @id @default(uuid())
+  userId     String
+  contactId  String
+  name       String?
+  status     ContactStatus @default(pending)
+  isFavorite Boolean       @default(false)
+  createdAt  DateTime      @default(now())
+  user       User          @relation("UserContacts", fields: [userId], references: [id])
+  contact    User          @relation("ContactOf", fields: [contactId], references: [id])
+  @@index([userId])
+  @@index([contactId])
+}
+
+model PreKeyBundle {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  identityKey    String
+  signedPreKeyId Int
+  signedPreKey   String
+  signedPreKeySig String
+  createdAt      DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id])
+}
+
+model OneTimePreKey {
+  id        String   @id @default(uuid())
+  userId    String
+  keyId     Int
+  publicKey String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  @@index([userId])
+}
